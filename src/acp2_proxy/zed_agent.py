@@ -213,7 +213,7 @@ class ZedAgentConnection:
 
     async def notify(self, method: str, params: Optional[dict[str, Any]] = None) -> None:
         """Send a JSON-RPC notification (no response expected)."""
-        message = {"jsonrpc": "2.0", "method": method}
+        message: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
         if params is not None:
             message["params"] = params
         self._logger.debug("Sending notification", extra={"method": method, "params": params})
@@ -286,6 +286,47 @@ class ZedAgentConnection:
             return session_id
         except Exception as e:
             self._logger.error("Session creation failed", extra={"error": str(e)})
+            raise
+
+    async def load_session(self, session_id: str, cwd: str, mcp_servers: list[dict[str, Any]] | None = None) -> None:
+        """Load an existing session by ID."""
+        params = {
+            "sessionId": session_id,
+            "cwd": cwd,
+            "mcpServers": mcp_servers or []
+        }
+        self._logger.info("=== SESSION LOADING PHASE ===")
+        self._logger.debug("Sending session/load request", extra={"session_id": session_id, "params": params})
+
+        # Handle the session/load response
+        # The agent will stream conversation history via session/update notifications
+        async def load_handler(payload: dict[str, Any]) -> None:
+            self._logger.debug("Received notification during session load", extra={
+                "method": payload.get("method"),
+                "payload_keys": list(payload.keys())
+            })
+
+            if payload.get("method") == "session/update":
+                params = payload.get("params", {})
+                update_data = params.get("update", {})
+                event = update_data.get("sessionUpdate")
+                self._logger.debug("Session load update", extra={
+                    "event": event,
+                    "update_keys": list(update_data.keys())
+                })
+                # History replay notifications will be sent here
+
+        try:
+            result = await self.request("session/load", params, handler=load_handler)
+            self._logger.info("Session loaded successfully", extra={
+                "session_id": session_id,
+                "result": result
+            })
+        except Exception as e:
+            self._logger.error("Session loading failed", extra={
+                "session_id": session_id,
+                "error": str(e)
+            })
             raise
 
     async def prompt(

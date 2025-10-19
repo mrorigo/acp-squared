@@ -51,6 +51,7 @@ class RunCreateRequest(BaseModel):
     agent: str = Field(..., description="Agent name from configuration.")
     input: Message = Field(..., description="The initial user message to send to the agent.")
     mode: RunMode = Field(default=RunMode.sync, description="Execution mode.")
+    session_id: Optional[str] = Field(None, description="Optional session ID for stateful runs.")
 
 
 class ErrorDetail(BaseModel):

@@ -5,9 +5,12 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, TYPE_CHECKING
 
 from .models import ErrorDetail, Message, MessagePart, Run, RunMode, RunStatus
+
+if TYPE_CHECKING:
+    from .zed_agent import ZedAgentConnection
 
 logger = logging.getLogger(__name__)
 
@@ -165,3 +168,4 @@ class RunManager:
             if not state:
                 raise KeyError(run_id)
             return state.cancel_event
+

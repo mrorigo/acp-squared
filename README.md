@@ -1,6 +1,43 @@
 # ACP² Proxy Server
 
-**ACP²** (pronounced "ACP Squared") is a protocol bridge that solves the **ZedACP ↔ IBM ACP confusion** by seamlessly connecting agents built for the **Agent Client Protocol** (Zed's stdio/JSON-RPC protocol) with clients expecting the **Agent Communication Protocol** (IBM's RESTful HTTP API).
+**ACP²** (pronounced "ACP Squared") is a **stateful agent platform** that bridges the **ZedACP ↔ IBM ACP protocol gap** by seamlessly connecting agents built for the **Agent Client Protocol** (Zed's stdio/JSON-RPC protocol) with clients expecting the **Agent Communication Protocol** (IBM's RESTful HTTP API).
+
+ACP² supports **persistent sessions with conversational memory** across multiple runs, providing a full-featured **stateful agent platform**:
+
+- 🎯 **Session Persistence**: Maintain conversation context across multiple runs
+- 💾 **Message History**: Store and retrieve conversation history via API
+- 🔄 **ZedACP Integration**: Leverage native ZedACP session persistence capabilities
+- 🏗️ **Session Management**: Complete lifecycle management with cleanup and monitoring
+
+```bash
+# Create a stateful session
+curl -X POST http://localhost:8001/runs \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent": "codex-acp",
+    "session_id": "my-conversation-123",
+    "input": {
+      "role": "user",
+      "content": [{"type": "text", "text": "Remember: My name is Alice"}]
+    }
+  }'
+
+# Continue the conversation (agent remembers context)
+curl -X POST http://localhost:8001/runs \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent": "codex-acp",
+    "session_id": "my-conversation-123",
+    "input": {
+      "role": "user",
+      "content": [{"type": "text", "text": "What is my name?"}]
+    }
+  }'
+
+# Agent responds: "Your name is Alice" (context preserved!)
+```
 
 ## The ZedACP / IBM ACP Confusion
 
@@ -57,32 +94,61 @@ ACP² follows the **"Agent Wrapper"** pattern described in the ACP specification
 
 ## Key Features
 
+### 🏗️ **Stateful Agent Platform**
+ACP² provides persistent sessions with conversational memory across multiple runs:
+
+- **Session Persistence**: Maintain conversation context across multiple runs
+- **Message History**: Store and retrieve conversation history via API
+- **Session Management**: Complete lifecycle management with monitoring
+- **ZedACP Integration**: Leverage native ZedACP session persistence capabilities
+
 ### 🔄 **Protocol Translation**
+Complete bridging between ZedACP and IBM ACP protocols:
+
 - ZedACP `session/prompt` ↔ IBM ACP `POST /runs`
 - ZedACP `session/update` ↔ IBM ACP Server-Sent Events
 - ZedACP `session/cancel` ↔ IBM ACP `POST /runs/{id}/cancel`
+- ZedACP `session/load` ↔ IBM ACP session persistence
 
 ### 🚀 **Agent Management**
-- Launch ZedACP agents as subprocesses
-- Environment variable injection (API keys, etc.)
-- Graceful process lifecycle management
-- Concurrent session support
+Robust subprocess management for ZedACP agents:
+
+- Launch ZedACP agents as subprocesses with proper lifecycle management
+- Environment variable injection (API keys, authentication tokens)
+- Graceful process lifecycle management with cleanup
+- Concurrent session support with SQLite-backed persistence
 
 ### 📡 **Real-time Streaming**
+Full support for both synchronous and streaming modes:
+
 - **Sync Mode**: Buffered responses for traditional clients
 - **Stream Mode**: Server-Sent Events for real-time updates
 - **Message Chunks**: Proper aggregation of `agent_message_chunk` events
+- **Cancellation Events**: Real-time cancellation notifications via SSE
 
-### 🔐 **Authentication**
+### 🔐 **Authentication & Security**
+Secure credential and session management:
+
 - Bearer token authentication for IBM ACP clients
 - API key injection for ZedACP agents
 - Secure credential handling
+- Session isolation and data encryption
 
 ### 🎯 **ZedACP Agent Compatibility**
+Works with any ZedACP-compliant agent:
+
 - ✅ `codex-acp` (OpenAI)
 - ✅ `claude-code-acp` (Anthropic)
 - ✅ `gemini-cli` (Google)
-- ✅ Any ZedACP-compliant agent
+- ✅ Any ZedACP-compliant agent with session persistence
+
+### 💾 **Data Persistence**
+Robust storage layer for session state:
+
+- **SQLite Database**: Session storage with WAL mode for concurrency
+- **Message History**: Complete conversation archiving with dual format storage
+- **Session Metadata**: Activity tracking and lifecycle management
+- **Cross-restart Persistence**: Sessions survive server restarts
 
 ## Quick Start
 
@@ -121,6 +187,53 @@ cp config/agents.json.example config/agents.json
 }
 ```
 
+### Session Management
+
+ACP² supports stateful sessions that maintain conversation context across multiple runs:
+
+```bash
+# Create a stateful session
+curl -X POST http://localhost:8001/runs \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent": "codex-acp",
+    "session_id": "my-session-123",
+    "mode": "sync",
+    "input": {
+      "role": "user",
+      "content": [{"type": "text", "text": "Remember: My favorite color is blue"}]
+    }
+  }'
+
+# Continue the conversation (context preserved)
+curl -X POST http://localhost:8001/runs \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent": "codex-acp",
+    "session_id": "my-session-123",
+    "mode": "sync",
+    "input": {
+      "role": "user",
+      "content": [{"type": "text", "text": "What is my favorite color?"}]
+    }
+  }'
+
+# List all sessions
+curl -H "Authorization: Bearer your-token" \
+     http://localhost:8001/sessions
+
+# Get session details and history
+curl -H "Authorization: Bearer your-token" \
+     http://localhost:8001/sessions/my-session-123
+
+# Delete session when done
+curl -X DELETE \
+  -H "Authorization: Bearer your-token" \
+  http://localhost:8001/sessions/my-session-123
+```
+
 ### Run the Server
 
 ```bash
@@ -156,6 +269,33 @@ curl -X POST http://localhost:8001/runs \
       "content": [{"type": "text", "text": "Hello, world!"}]
     }
   }'
+
+# Create a stateful run with session persistence
+curl -X POST http://localhost:8001/runs \
+  -H "Authorization: Bearer your-secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent": "codex-acp",
+    "session_id": "my-conversation-123",
+    "mode": "sync",
+    "input": {
+      "role": "user",
+      "content": [{"type": "text", "text": "Remember: My name is Alice"}]
+    }
+  }'
+
+# List all sessions
+curl -H "Authorization: Bearer your-secret-token" \
+     http://localhost:8001/sessions
+
+# Get session details and message history
+curl -H "Authorization: Bearer your-secret-token" \
+     http://localhost:8001/sessions/my-conversation-123
+
+# Delete a session
+curl -X DELETE \
+  -H "Authorization: Bearer your-secret-token" \
+  http://localhost:8001/sessions/my-conversation-123
 ```
 
 ## API Reference
@@ -170,14 +310,41 @@ ACP² implements the full **IBM ACP specification**:
 | `GET` | `/agents` | List available agents |
 | `GET` | `/agents/{name}` | Get agent manifest |
 | `POST` | `/runs` | Create new run (sync/stream) |
-| `GET` | `/runs/{id}` | Get run status |
 | `POST` | `/runs/{id}/cancel` | Cancel running run |
+
+### Session Management Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/sessions` | List ACP sessions with optional filtering |
+| `GET` | `/sessions/{id}` | Get detailed session info and message history |
+| `DELETE` | `/sessions/{id}` | Delete session and all associated data |
 
 ### Run Modes
 
 - **`sync`**: Traditional request/response
 - **`stream`**: Server-Sent Events for real-time updates
 - **`async`**: Fire-and-forget with webhooks (future)
+
+### Session Support
+
+Runs can be associated with sessions for stateful conversations:
+
+```json
+{
+  "agent": "codex-acp",
+  "session_id": "my-conversation-123",
+  "mode": "sync",
+  "input": {
+    "role": "user",
+    "content": [{"type": "text", "text": "Hello!"}]
+  }
+}
+```
+
+- **`session_id`**: Optional field for stateful sessions
+- **Session Persistence**: Conversations maintain context across multiple runs
+- **Message History**: Automatic storage and retrieval via session management APIs
 
 ### Message Format
 
@@ -312,17 +479,23 @@ acp2/
 │   ├── main.py             # FastAPI application
 │   ├── zed_agent.py        # ZedACP subprocess management
 │   ├── run_manager.py      # Run lifecycle management
+│   ├── session_manager.py  # Stateful session management
+│   ├── database.py         # SQLite session persistence
 │   ├── agent_registry.py   # Agent configuration
+│   ├── logging_config.py   # Structured logging setup
 │   └── models.py           # Pydantic models
 ├── tests/                  # Test suite
 │   ├── test_agents.py      # Agent endpoint tests
 │   ├── test_runs.py        # Run lifecycle tests
+│   ├── test_stateful_agents.py # Stateful functionality tests
 │   └── dummy_agent.py      # Test ZedACP agent
 ├── config/                 # Configuration
 │   └── agents.json         # Agent definitions
 └── docs/                   # Documentation
     ├── research.md         # Protocol research
-    └── ZedACP.md           # ZedACP specification
+    ├── ZedACP.md           # ZedACP specification
+    ├── STATEFUL_PLAN.md     # Stateful implementation plan
+    └── agentcommunicationprotocol/ # IBM ACP specification
 ```
 
 ### Running Tests
@@ -336,6 +509,9 @@ make test-coverage
 
 # Run specific test
 python -m pytest tests/test_runs.py::test_run_sync -v
+
+# Run stateful agent tests
+python -m pytest tests/test_stateful_agents.py -v
 ```
 
 ### Adding New ZedACP Agents

@@ -15,7 +15,7 @@ help:
 
 # Create a virtual environment if it doesn't exist
 .venv:
-	python -m venv .venv
+	python3 -m venv .venv
 	./.venv/bin/pip install -U pip uv
 
 # Installation targets
@@ -54,3 +54,7 @@ clean:
 	rm -rf .venv
 	rm -rf .pytest_cache .mypy_cache .ruff_cache
 	find . -type d -name "__pycache__" -exec rm -r {} +
+
+run: dev-install
+	@echo "--> Starting ACP² Proxy Server..."
+	./.venv/bin/uv run uvicorn src.acp2_proxy.main:create_app --port 8002 --host "0.0.0.0"

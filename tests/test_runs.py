@@ -33,7 +33,7 @@ def iter_sse(response) -> Generator[Tuple[str, dict], None, None]:
             yield event_name, json.loads(data_json)
 
 
-async def async_iter_sse(response) -> Generator[Tuple[str, dict], None, None]:
+async def async_iter_sse(response):
     buffer = ""
     async for chunk in response.aiter_text():
         buffer += chunk
